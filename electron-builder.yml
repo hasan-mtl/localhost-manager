@@ -1,0 +1,18 @@
+appId: com.localhostmanager.app
+productName: Localhost Manager
+asar: true
+npmRebuild: false
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+  artifactName: ${productName}-${version}-${arch}.${ext}
+extraMetadata:
+  main: out/main/index.js
+

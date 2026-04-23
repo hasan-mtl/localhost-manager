@@ -1,0 +1,41 @@
+{
+  "name": "localhost-manager",
+  "productName": "Localhost Manager",
+  "version": "1.0.0",
+  "description": "A macOS-first Electron app for managing local development projects and active localhost ports.",
+  "main": "out/main/index.js",
+  "author": "OpenAI Codex",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit",
+    "dist": "npm run build && electron-builder --config electron-builder.yml"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.13",
+    "electron-store": "^10.0.1",
+    "execa": "^9.5.2",
+    "lucide-react": "^0.468.0",
+    "open": "^10.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tree-kill": "^1.2.2",
+    "zod": "^3.24.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.3.2",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  }
+}
