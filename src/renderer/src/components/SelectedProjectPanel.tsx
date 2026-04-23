@@ -1,43 +1,8 @@
 import type { PortRecord, ProjectRuntimeState, SavedProject } from '@shared/types';
 import { ExternalLink, FolderOpen, RotateCcw, SquareTerminal, StopCircle } from 'lucide-react';
 import { formatDateTime, formatUptime, stackLabel } from '../lib/format';
+import { Sparkline } from './Sparkline';
 import { StatusBadge } from './StatusBadge';
-
-function Sparkline({ values }: { values: number[] }) {
-  if (values.length === 0) {
-    return <div className="h-28 rounded-2xl border border-dashed border-white/10 bg-white/[0.02]" />;
-  }
-
-  const max = Math.max(...values, 1);
-  const points = values
-    .map((value, index) => {
-      const x = (index / Math.max(values.length - 1, 1)) * 100;
-      const y = 100 - (value / max) * 100;
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  return (
-    <div className="rounded-2xl border border-white/8 bg-gradient-to-b from-cyan-500/6 to-transparent p-3">
-      <svg viewBox="0 0 100 100" className="h-24 w-full">
-        <defs>
-          <linearGradient id="sparkline-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#2dd4bf" />
-            <stop offset="100%" stopColor="#2d73ff" />
-          </linearGradient>
-        </defs>
-        <polyline
-          fill="none"
-          stroke="url(#sparkline-gradient)"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          points={points}
-        />
-      </svg>
-    </div>
-  );
-}
 
 interface SelectedProjectPanelProps {
   project?: SavedProject;
@@ -77,7 +42,10 @@ export function SelectedProjectPanel({
   const runtimeStatus = runtime?.status ?? 'stopped';
   const runtimePort = runtime?.port ?? matchedPort?.port ?? project.preferredPort;
   const runtimeUrl = runtime?.url ?? matchedPort?.detectedUrl ?? project.preferredUrl;
-  const canStop = ['running', 'starting', 'external'].includes(runtimeStatus);
+  const canStop =
+    runtimeStatus === 'running' ||
+    runtimeStatus === 'starting' ||
+    (runtimeStatus === 'external' && Boolean(matchedPort?.canStop));
 
   return (
     <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-6">
@@ -113,7 +81,27 @@ export function SelectedProjectPanel({
           <span className="text-slate-500">Port</span>
           <span className="text-slate-200">{runtimePort ?? '—'}</span>
         </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-slate-500">HTTP Reachability</span>
+          <span className={matchedPort?.reachable || runtime?.url ? 'text-emerald-300' : 'text-slate-400'}>
+            {matchedPort?.reachable || runtime?.url ? 'Reachable' : 'Awaiting response'}
+          </span>
+        </div>
       </div>
+
+      {runtime?.lastError && (
+        <div className="mt-5 rounded-2xl border border-red-500/18 bg-red-500/8 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-200">Latest Error</p>
+          <p className="mt-2 text-sm leading-6 text-red-100">{runtime.lastError}</p>
+        </div>
+      )}
+
+      {project.notes && (
+        <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Notes</p>
+          <p className="mt-2 text-sm leading-6 text-slate-300">{project.notes}</p>
+        </div>
+      )}
 
       <div className="mt-6">
         <div className="mb-3 flex items-center justify-between">
@@ -135,6 +123,7 @@ export function SelectedProjectPanel({
         <button
           type="button"
           disabled={!canStop}
+          title={matchedPort?.stopWarning}
           onClick={() => onStop(project, runtime, matchedPort)}
           className={`flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white ${
             canStop ? 'bg-red-600 hover:bg-red-500' : 'cursor-not-allowed bg-red-900/30 text-red-200/60'
@@ -174,4 +163,3 @@ export function SelectedProjectPanel({
     </div>
   );
 }
-

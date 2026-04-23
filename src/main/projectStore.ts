@@ -109,6 +109,21 @@ export class ProjectStore {
     return this.getProjects().find((project) => project.id === projectId);
   }
 
+  private ensureUniqueProjectPath(project: SavedProject): void {
+    const normalizedPath = project.rootPath.replace(/\/+$/, '').toLowerCase();
+    const conflictingProject = this.getProjects().find((entry) => {
+      if (entry.id === project.id) {
+        return false;
+      }
+
+      return entry.rootPath.replace(/\/+$/, '').toLowerCase() === normalizedPath;
+    });
+
+    if (conflictingProject) {
+      throw new Error(`"${conflictingProject.name}" already points to this folder.`);
+    }
+  }
+
   createProject(project: Omit<SavedProject, 'id' | 'createdAt' | 'updatedAt'>): SavedProject {
     const timestamp = new Date().toISOString();
     const nextProject: SavedProject = {
@@ -128,6 +143,7 @@ export class ProjectStore {
       ...project,
       updatedAt: now,
     });
+    this.ensureUniqueProjectPath(validated);
     const existing = this.getProjects();
     const nextProjects = existing.filter((entry) => entry.id !== validated.id);
     nextProjects.push(validated);

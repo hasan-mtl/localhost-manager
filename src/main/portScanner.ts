@@ -1,4 +1,5 @@
 import { basename } from 'node:path';
+import { homedir } from 'node:os';
 import type { AppSettings, PortRecord, ProjectRuntimeState, SavedProject } from '../shared/types';
 import type { PortInspectionRecord } from './types';
 import { inspectLinuxListeningPorts } from './os/linux';
@@ -35,6 +36,35 @@ function isLocalBinding(host?: string): boolean {
   }
 
   return ['127.0.0.1', 'localhost', '::1', '0.0.0.0', '*', '::'].includes(host);
+}
+
+function canSafelyStopPort(
+  record: PortInspectionRecord,
+  matchedProjectId?: string,
+  managedRuntime?: ProjectRuntimeState,
+): { canStop: boolean; stopWarning?: string } {
+  if (managedRuntime && ['running', 'starting'].includes(managedRuntime.status)) {
+    return { canStop: true };
+  }
+
+  if (matchedProjectId) {
+    return { canStop: true };
+  }
+
+  if (isLikelyDevProcess(record)) {
+    return { canStop: true };
+  }
+
+  const normalizedHome = normalizePath(homedir());
+  const normalizedCwd = normalizePath(record.cwd);
+  if (normalizedCwd && normalizedCwd.startsWith(normalizedHome)) {
+    return { canStop: true };
+  }
+
+  return {
+    canStop: false,
+    stopWarning: 'Stopping this listener is disabled because it does not look like a local development process.',
+  };
 }
 
 function scoreProjectMatch(project: SavedProject, port: PortInspectionRecord, runtime?: ProjectRuntimeState): number {
@@ -74,6 +104,33 @@ async function inspectPortsForPlatform(): Promise<PortInspectionRecord[]> {
     default:
       return [];
   }
+}
+
+function scorePortPriority(port: PortRecord): number {
+  const haystack = `${port.processName ?? ''} ${port.command ?? ''}`.toLowerCase();
+  let score = 0;
+
+  if (port.source === 'managed') {
+    score += 6;
+  }
+
+  if (port.matchedProjectId) {
+    score += 4;
+  }
+
+  if (port.canStop) {
+    score += 1;
+  }
+
+  if (['node', 'npm', 'pnpm', 'yarn', 'bun', 'next', 'vite', 'php', 'artisan', 'python', 'uvicorn', 'rails', 'deno'].some((token) => haystack.includes(token))) {
+    score += 3;
+  }
+
+  if (port.reachable) {
+    score += 1;
+  }
+
+  return score;
 }
 
 export class PortScanner {
@@ -118,6 +175,12 @@ export class PortScanner {
           }
         }
 
+        const matchedManagedRuntime = matchedProjectId ? runtimeMap.get(matchedProjectId) : undefined;
+        const source =
+          matchedManagedRuntime && ['running', 'starting'].includes(matchedManagedRuntime.status)
+            ? 'managed'
+            : 'external';
+        const safety = canSafelyStopPort(record, matchedProjectId, matchedManagedRuntime);
         const url = buildPortUrlCandidates(record.port, record.host)[0];
         return {
           id: `${record.pid}:${record.port}`,
@@ -129,13 +192,21 @@ export class PortScanner {
           command: record.command,
           cwd: record.cwd,
           state: 'listening',
-          source: directRuntime ? 'managed' : 'external',
+          source,
           matchedProjectId,
           detectedUrl: url,
           startedAt: record.startedAt,
+          canStop: safety.canStop,
+          stopWarning: safety.stopWarning,
         };
       })
-      .sort((left, right) => left.port - right.port);
+      .sort((left, right) => {
+        const scoreDelta = scorePortPriority(right) - scorePortPriority(left);
+        if (scoreDelta !== 0) {
+          return scoreDelta;
+        }
+
+        return left.port - right.port;
+      });
   }
 }
-

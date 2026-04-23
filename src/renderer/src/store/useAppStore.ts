@@ -286,66 +286,167 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   startProject: async (projectId) => {
-    await expectOk(api.startProject(projectId));
-    await get().refreshSnapshot(true);
+    try {
+      await expectOk(api.startProject(projectId));
+      await get().refreshSnapshot(true);
+      const projectName = get().snapshot?.projects.find((project) => project.id === projectId)?.name ?? 'Project';
+      get().pushToast({
+        tone: 'success',
+        title: `${projectName} is starting`,
+        description: 'Logs and health checks will update as soon as the process responds.',
+      });
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to start project',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   stopProject: async (projectId) => {
-    await expectOk(api.stopProject(projectId));
-    await get().refreshSnapshot(true);
+    try {
+      await expectOk(api.stopProject(projectId));
+      await get().refreshSnapshot(true);
+      get().pushToast({
+        tone: 'success',
+        title: 'Project stopped',
+        description: 'The managed localhost process tree has been stopped.',
+      });
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to stop project',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   restartProject: async (projectId) => {
-    await expectOk(api.restartProject(projectId));
-    await get().refreshSnapshot(true);
+    try {
+      await expectOk(api.restartProject(projectId));
+      await get().refreshSnapshot(true);
+      get().pushToast({
+        tone: 'success',
+        title: 'Project restarted',
+        description: 'The project was restarted and Localhost Manager is checking the new runtime URL.',
+      });
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to restart project',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   openProjectLocalhost: async (projectId) => {
-    const url = await expectOk(api.openProjectLocalhost(projectId));
-    await get().refreshSnapshot(true);
-    get().pushToast({
-      tone: 'success',
-      title: 'Opened localhost',
-      description: url,
-    });
+    try {
+      const url = await expectOk(api.openProjectLocalhost(projectId));
+      await get().refreshSnapshot(true);
+      get().pushToast({
+        tone: 'success',
+        title: 'Opened localhost',
+        description: url,
+      });
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to open localhost',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   openPortLocalhost: async (portId) => {
-    const url = await expectOk(api.openPortLocalhost(portId));
-    get().pushToast({
-      tone: 'success',
-      title: 'Opened localhost port',
-      description: url,
-    });
+    try {
+      const url = await expectOk(api.openPortLocalhost(portId));
+      get().pushToast({
+        tone: 'success',
+        title: 'Opened localhost port',
+        description: url,
+      });
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to open localhost port',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   stopPort: async (portId) => {
-    await expectOk(api.stopExternalPort(portId));
-    await get().refreshSnapshot(true);
-    get().pushToast({
-      tone: 'success',
-      title: 'Process stopped',
-      description: 'The selected listening process has been stopped.',
-    });
+    try {
+      await expectOk(api.stopExternalPort(portId));
+      await get().refreshSnapshot(true);
+      get().pushToast({
+        tone: 'success',
+        title: 'Process stopped',
+        description: 'The selected listening process has been stopped.',
+      });
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to stop port',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   openFolder: async (targetPath) => {
-    await expectOk(api.openFolder(targetPath));
+    try {
+      await expectOk(api.openFolder(targetPath));
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to open folder',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   openInVSCode: async (targetPath) => {
-    await expectOk(api.openInVSCode(targetPath));
-    get().pushToast({
-      tone: 'success',
-      title: 'Opening in VS Code',
-      description: targetPath,
-    });
+    try {
+      await expectOk(api.openInVSCode(targetPath));
+      get().pushToast({
+        tone: 'success',
+        title: 'Opening in VS Code',
+        description: targetPath,
+      });
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to open VS Code',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   clearLogs: async (projectId) => {
-    await expectOk(api.clearLogs(projectId));
-    await get().refreshSnapshot(true);
+    try {
+      await expectOk(api.clearLogs(projectId));
+      await get().refreshSnapshot(true);
+      get().pushToast({
+        tone: 'success',
+        title: 'Logs cleared',
+        description: 'Stored project logs were cleared from Localhost Manager.',
+      });
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to clear logs',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   saveSettings: async (settings) => {
-    await expectOk(api.updateSettings(settings));
-    await get().refreshSnapshot(true);
-    get().pushToast({
-      tone: 'success',
-      title: 'Settings updated',
-      description: 'Preferences were saved to the local desktop store.',
-    });
+    try {
+      await expectOk(api.updateSettings(settings));
+      await get().refreshSnapshot(true);
+      get().pushToast({
+        tone: 'success',
+        title: 'Settings updated',
+        description: 'Preferences were saved to the local desktop store.',
+      });
+    } catch (error) {
+      get().pushToast({
+        tone: 'error',
+        title: 'Unable to save settings',
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
   },
   pushToast: (toast) =>
     set((state) => ({

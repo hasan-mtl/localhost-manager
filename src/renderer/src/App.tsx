@@ -1,5 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef } from 'react';
 import type { PortRecord, ProjectRuntimeState, QuickFilter, SavedProject } from '@shared/types';
+import { ToastHost } from './components/ToastHost';
 import { pageTitles } from './lib/constants';
 import { DashboardPage } from './pages/DashboardPage';
 import { LogsPage } from './pages/LogsPage';
@@ -13,46 +14,12 @@ import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { useAppStore } from './store/useAppStore';
 
-function ToastViewport() {
-  const toasts = useAppStore((state) => state.toasts);
-  const dismissToast = useAppStore((state) => state.dismissToast);
-
-  useEffect(() => {
-    const timers = toasts.map((toast) =>
-      window.setTimeout(() => {
-        dismissToast(toast.id);
-      }, 3500),
-    );
-
-    return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [dismissToast, toasts]);
-
-  return (
-    <div className="pointer-events-none fixed bottom-6 right-6 z-50 space-y-3">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={`pointer-events-auto w-80 rounded-2xl border px-4 py-3 shadow-panel ${
-            toast.tone === 'error'
-              ? 'border-red-500/20 bg-[#291316]'
-              : toast.tone === 'success'
-                ? 'border-emerald-500/20 bg-[#102117]'
-                : 'border-blue-500/20 bg-[#0f1d30]'
-          }`}
-        >
-          <p className="text-sm font-semibold text-white">{toast.title}</p>
-          {toast.description && <p className="mt-1 text-sm text-slate-300">{toast.description}</p>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function App() {
   const searchRef = useRef<HTMLInputElement>(null);
   const {
     snapshot,
     loading,
+    refreshing,
     currentPage,
     searchQuery,
     quickFilter,
@@ -211,6 +178,8 @@ export default function App() {
           onQuickFilterChange={setQuickFilter}
           counts={counts}
           hasErrors={counts.errors > 0}
+          runningPorts={snapshot.ports.length}
+          refreshing={refreshing}
         />
 
         <main className="flex min-w-0 flex-1 flex-col">
@@ -221,6 +190,8 @@ export default function App() {
             onScanPorts={() => void scanPorts()}
             onAddProject={() => void beginAddProject()}
             searchRef={searchRef}
+            refreshing={refreshing}
+            generatedAt={snapshot.generatedAt}
           />
 
           <div className="min-h-0 flex-1 p-8">
@@ -309,8 +280,7 @@ export default function App() {
         onClose={closeConfirm}
         onConfirm={() => void confirmAction()}
       />
-      <ToastViewport />
+      <ToastHost />
     </div>
   );
 }
-

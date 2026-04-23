@@ -4,15 +4,18 @@ asar: true
 npmRebuild: false
 directories:
   output: release
+afterSign: scripts/notarize.cjs
 files:
   - out/**
   - package.json
+  - scripts/notarize.cjs
 mac:
   category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
   target:
     - dmg
     - zip
   artifactName: ${productName}-${version}-${arch}.${ext}
 extraMetadata:
   main: out/main/index.js
-

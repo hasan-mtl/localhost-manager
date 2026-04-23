@@ -30,17 +30,20 @@ export function ActivePortsTable({ ports, onOpenLocalhost, onStopPort }: ActiveP
             <p className="truncate text-xs text-slate-500">{port.command ?? port.cwd ?? 'Local listener'}</p>
           </div>
           <div className="flex items-center text-sm text-slate-300">{port.pid ?? '—'}</div>
-          <div className="flex items-center">
-            <span
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${
-                port.source === 'managed'
-                  ? 'border-emerald-500/20 bg-emerald-500/12 text-emerald-300'
-                  : 'border-violet-500/20 bg-violet-500/12 text-violet-300'
-              }`}
-            >
-              <span className="h-2 w-2 rounded-full bg-current" />
-              {port.source === 'managed' ? 'Managed' : 'External'}
-            </span>
+          <div className="flex min-w-0 items-center">
+            <div>
+              <span
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${
+                  port.reachable
+                    ? 'border-emerald-500/20 bg-emerald-500/12 text-emerald-300'
+                    : 'border-violet-500/20 bg-violet-500/12 text-violet-300'
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full bg-current" />
+                {port.reachable ? `Reachable${port.latencyMs ? ` • ${port.latencyMs}ms` : ''}` : 'Listening'}
+              </span>
+              <p className="mt-1 text-xs text-slate-500">{port.source === 'managed' ? 'Managed by app' : 'External process'}</p>
+            </div>
           </div>
           <div className="flex items-center text-sm text-slate-300">{formatClockTime(port.startedAt)}</div>
           <div className="flex items-center justify-end gap-2">
@@ -55,7 +58,13 @@ export function ActivePortsTable({ ports, onOpenLocalhost, onStopPort }: ActiveP
             <button
               type="button"
               onClick={() => onStopPort(port)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-slate-100 hover:bg-red-500/14 hover:text-red-100"
+              disabled={!port.canStop}
+              title={port.stopWarning}
+              className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-medium ${
+                port.canStop
+                  ? 'border-white/10 bg-white/[0.03] text-slate-100 hover:bg-red-500/14 hover:text-red-100'
+                  : 'cursor-not-allowed border-white/6 bg-white/[0.02] text-slate-500'
+              }`}
             >
               <StopCircle className="h-4 w-4" />
               Stop
@@ -72,4 +81,3 @@ export function ActivePortsTable({ ports, onOpenLocalhost, onStopPort }: ActiveP
     </div>
   );
 }
-

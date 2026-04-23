@@ -19,7 +19,10 @@ export function SettingsPage({ settings, onSaveSettings }: SettingsPageProps) {
     <div className="grid gap-5 overflow-auto pr-2 xl:grid-cols-[minmax(0,1.1fr)_420px]">
       <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-6">
         <h2 className="text-2xl font-semibold text-white">Settings</h2>
-        <p className="mt-2 text-sm text-slate-500">Control how often Localhost Manager scans the machine and how cautious it should be with external processes.</p>
+        <p className="mt-2 text-sm text-slate-500">
+          Control how often Localhost Manager scans the machine, how cautious it is with external processes,
+          and how the app behaves when you launch projects from the desktop.
+        </p>
 
         <div className="mt-8 space-y-6">
           <div>
@@ -133,8 +136,13 @@ export function SettingsPage({ settings, onSaveSettings }: SettingsPageProps) {
         >
           Save Preferences
         </button>
+        <div className="rounded-[28px] border border-white/8 bg-white/[0.03] p-6">
+          <h3 className="text-lg font-semibold text-white">Distribution Notes</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-400">
+            This build is configured for direct macOS distribution with hardened runtime packaging and optional notarization when Apple credentials are present in the environment.
+          </p>
+        </div>
       </div>
     </div>
   );
 }
-

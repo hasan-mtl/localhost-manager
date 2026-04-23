@@ -1,9 +1,11 @@
 import { dialog, ipcMain } from 'electron';
 import { cpus, freemem, loadavg, totalmem } from 'node:os';
+import { execa } from 'execa';
 import open, { openApp } from 'open';
 import type { AppSnapshot, PortRecord, ProjectRuntimeState, SavedProject } from '../shared/types';
 import { detectProject } from './projectDetector';
 import { HealthMonitor } from './healthMonitor';
+import { Notifications } from './notifications';
 import { PortScanner } from './portScanner';
 import { ProcessManager } from './processManager';
 import { ProjectStore } from './projectStore';
@@ -11,6 +13,7 @@ import { getProjectUrlCandidates } from './urlResolver';
 
 interface AppServices {
   healthMonitor: HealthMonitor;
+  notifications: Notifications;
   portScanner: PortScanner;
   processManager: ProcessManager;
   store: ProjectStore;
@@ -48,7 +51,8 @@ async function buildSnapshot(services: AppServices): Promise<AppSnapshot> {
   const projects = services.store.getProjects();
   const settings = services.store.getSettings();
   const managedStates = services.processManager.getManagedStates();
-  const ports = await services.portScanner.scanPorts(projects, managedStates, settings);
+  const scannedPorts = await services.portScanner.scanPorts(projects, managedStates, settings);
+  const ports = await services.healthMonitor.evaluatePorts(scannedPorts);
 
   const runtimeStates = await Promise.all(
     projects.map(async (project) => {
@@ -99,18 +103,36 @@ async function openResolvedProjectUrl(
   runtime: ProjectRuntimeState,
   matchedPort?: PortRecord,
 ): Promise<string> {
-  const candidateUrls = getProjectUrlCandidates(project, runtime, matchedPort);
+  let candidateUrls = getProjectUrlCandidates(project, runtime, matchedPort);
   if (candidateUrls.length === 0) {
     throw new Error('No localhost URL could be resolved for this project.');
   }
 
-  const reachable = await services.healthMonitor.waitForReachableUrl(candidateUrls);
-  const targetUrl = reachable ?? candidateUrls[0];
+  let reachable = await services.healthMonitor.waitForReachableUrl(candidateUrls, 20000, 700);
+  if (!reachable) {
+    const refreshedSnapshot = await buildSnapshot(services);
+    const refreshedRuntime = refreshedSnapshot.runtimeStates.find((entry) => entry.projectId === project.id) ?? runtime;
+    const refreshedPort = refreshedSnapshot.ports.find((entry) => entry.matchedProjectId === project.id) ?? matchedPort;
+    candidateUrls = getProjectUrlCandidates(project, refreshedRuntime, refreshedPort);
+    reachable = await services.healthMonitor.waitForReachableUrl(candidateUrls, 12000, 700);
+  }
+
+  if (!reachable) {
+    throw new Error('The project started, but no reachable localhost URL could be confirmed. Check the logs or update the preferred URL.');
+  }
+
+  const targetUrl = reachable;
   await open(targetUrl, { wait: false });
+  services.processManager.appendSystemLog(project.id, `Opened localhost at ${targetUrl}`);
   return targetUrl;
 }
 
 async function openInVSCode(targetPath: string): Promise<void> {
+  const cliAttempt = await execa('code', [targetPath], { reject: false });
+  if (cliAttempt.exitCode === 0) {
+    return;
+  }
+
   try {
     await openApp('Visual Studio Code', {
       wait: false,
@@ -191,6 +213,7 @@ export function registerIpcHandlers(services: AppServices): void {
       wrapResponse(async () => {
         const project = getProjectOrThrow(services.store, projectId);
         const runtime = await services.processManager.startProject(project);
+        services.processManager.appendSystemLog(projectId, 'Start requested from the dashboard.');
         if (services.store.getSettings().openBrowserOnStart) {
           const snapshot = await buildSnapshot(services);
           const matchedPort = snapshot.ports.find((port) => port.matchedProjectId === project.id);
@@ -203,7 +226,10 @@ export function registerIpcHandlers(services: AppServices): void {
   ipcMain.handle(
     'project:stop',
     async (_event, projectId: string) =>
-      wrapResponse(() => services.processManager.stopProject(projectId))(),
+      wrapResponse(async () => {
+        services.processManager.appendSystemLog(projectId, 'Stop requested from the dashboard.');
+        return services.processManager.stopProject(projectId);
+      })(),
   );
 
   ipcMain.handle(
@@ -211,6 +237,7 @@ export function registerIpcHandlers(services: AppServices): void {
     async (_event, projectId: string) =>
       wrapResponse(async () => {
         const project = getProjectOrThrow(services.store, projectId);
+        services.processManager.appendSystemLog(projectId, 'Restart requested from the dashboard.');
         return services.processManager.restartProject(project);
       })(),
   );
@@ -286,6 +313,10 @@ export function registerIpcHandlers(services: AppServices): void {
         const port = snapshot.ports.find((entry) => entry.id === portId);
         if (!port?.pid) {
           throw new Error('This port does not have a stoppable process.');
+        }
+
+        if (!port.canStop) {
+          throw new Error(port.stopWarning ?? 'This process cannot be stopped from Localhost Manager.');
         }
 
         if (services.processManager.isManagedPid(port.pid) && port.matchedProjectId) {

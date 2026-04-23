@@ -79,6 +79,10 @@ export interface PortRecord {
   matchedProjectId?: string;
   detectedUrl?: string;
   startedAt?: string;
+  reachable?: boolean;
+  latencyMs?: number;
+  canStop: boolean;
+  stopWarning?: string;
 }
 
 export interface AppSettings {
@@ -149,4 +153,3 @@ export interface LocalhostManagerApi {
   updateSettings: (settings: AppSettings) => Promise<ApiResponse<AppSettings>>;
   setSelectedProject: (projectId?: string) => Promise<ApiResponse<boolean>>;
 }
-

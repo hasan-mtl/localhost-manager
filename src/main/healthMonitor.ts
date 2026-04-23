@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import type { PortRecord, ProjectRuntimeState, SavedProject } from '../shared/types';
-import { extractPortFromUrl, getProjectUrlCandidates, uniqueStrings } from './urlResolver';
+import { buildPortUrlCandidates, extractPortFromUrl, getProjectUrlCandidates, uniqueStrings } from './urlResolver';
 
 const HISTORY_LIMIT = 40;
 
@@ -40,6 +40,25 @@ export class HealthMonitor {
     }
   }
 
+  async resolveReachableUrl(
+    urls: string[],
+    timeoutMs = 1500,
+  ): Promise<{ url?: string; latencyMs?: number }> {
+    const candidates = uniqueStrings(urls);
+
+    for (const candidate of candidates) {
+      const latency = await this.pingUrl(candidate, timeoutMs);
+      if (latency !== null) {
+        return {
+          url: candidate,
+          latencyMs: latency,
+        };
+      }
+    }
+
+    return {};
+  }
+
   async evaluateProjectRuntime(
     project: SavedProject,
     runtime: ProjectRuntimeState,
@@ -47,40 +66,53 @@ export class HealthMonitor {
   ): Promise<ProjectRuntimeState> {
     const historyKey = `project:${project.id}`;
     const candidates = getProjectUrlCandidates(project, runtime, matchedPort);
-    let reachableUrl: string | undefined;
-    let reachableLatency: number | null = null;
-
-    for (const candidate of candidates) {
-      reachableLatency = await this.pingUrl(candidate);
-      if (reachableLatency !== null) {
-        reachableUrl = candidate;
-        break;
-      }
-    }
+    const resolution = await this.resolveReachableUrl(candidates, 1200);
+    const reachableUrl = resolution.url;
+    const reachableLatency = resolution.latencyMs ?? null;
 
     const nextStatus =
       reachableUrl !== undefined
         ? runtime.status === 'external'
           ? 'external'
           : 'running'
+        : matchedPort && ['running', 'starting'].includes(runtime.status)
+          ? 'running'
         : matchedPort && runtime.status === 'stopped'
           ? 'external'
-          : runtime.status;
+        : runtime.status;
 
     return {
       ...runtime,
       status: nextStatus,
       url: reachableUrl ?? runtime.url ?? matchedPort?.detectedUrl,
       port:
-        runtime.port ??
-        extractPortFromUrl(reachableUrl ?? runtime.url) ??
+        extractPortFromUrl(reachableUrl ?? runtime.url ?? matchedPort?.detectedUrl) ??
         matchedPort?.port ??
+        runtime.port ??
         project.preferredPort,
       uptimeSeconds: runtime.startedAt
         ? Math.max(0, Math.floor((Date.now() - new Date(runtime.startedAt).getTime()) / 1000))
         : undefined,
       healthHistory: this.updateHistory(historyKey, reachableLatency, runtime.healthHistory),
     };
+  }
+
+  async evaluatePorts(ports: PortRecord[]): Promise<PortRecord[]> {
+    return Promise.all(
+      ports.map(async (port) => {
+        const candidates = uniqueStrings([
+          port.detectedUrl,
+          ...buildPortUrlCandidates(port.port, port.host, port.detectedUrl),
+        ]);
+        const resolution = await this.resolveReachableUrl(candidates, 800);
+        return {
+          ...port,
+          detectedUrl: resolution.url ?? port.detectedUrl ?? candidates[0],
+          reachable: Boolean(resolution.url),
+          latencyMs: resolution.latencyMs,
+        };
+      }),
+    );
   }
 
   async waitForReachableUrl(urls: string[], timeoutMs = 30000, intervalMs = 750): Promise<string | null> {
@@ -101,4 +133,3 @@ export class HealthMonitor {
     return null;
   }
 }
-

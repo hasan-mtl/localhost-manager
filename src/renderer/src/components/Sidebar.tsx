@@ -18,6 +18,8 @@ interface SidebarProps {
   onQuickFilterChange: (filter: QuickFilter) => void;
   counts: Record<QuickFilter, number>;
   hasErrors: boolean;
+  runningPorts: number;
+  refreshing: boolean;
 }
 
 const navigation = [
@@ -35,10 +37,20 @@ export function Sidebar({
   onQuickFilterChange,
   counts,
   hasErrors,
+  runningPorts,
+  refreshing,
 }: SidebarProps) {
   return (
     <aside className="flex w-[280px] shrink-0 flex-col border-r border-white/8 bg-[#071120] px-5 py-5">
       <div className="flex items-center gap-3 rounded-2xl px-2 py-3">
+        <div className="flex items-center gap-2 pr-1">
+          <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+          <span className="h-3 w-3 rounded-full bg-[#ffbd2f]" />
+          <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center gap-3 rounded-2xl px-2 py-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600/16 text-blue-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           <Sparkles className="h-5 w-5" />
         </div>
@@ -88,10 +100,12 @@ export function Sidebar({
             <p className={`text-xs ${hasErrors ? 'text-red-300' : 'text-emerald-300'}`}>
               {hasErrors ? 'Attention needed' : 'All systems operational'}
             </p>
+            <p className="mt-2 text-xs text-slate-500">
+              {counts.running} running projects • {runningPorts} live ports {refreshing ? '• syncing' : ''}
+            </p>
           </div>
         </div>
       </div>
     </aside>
   );
 }
-

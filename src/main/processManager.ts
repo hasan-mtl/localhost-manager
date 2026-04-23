@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { execa, execaCommand } from 'execa';
+import { execaCommand } from 'execa';
 import kill from 'tree-kill';
 import type { LogEntry, ProjectRuntimeState, SavedProject } from '../shared/types';
+import { Notifications } from './notifications';
 import { LOG_RETENTION_LIMIT, ProjectStore } from './projectStore';
-import { extractPortFromText, extractUrlsFromText, normalizeLocalUrl } from './urlResolver';
+import { extractPortFromText, extractPortFromUrl, extractUrlsFromText, normalizeLocalUrl } from './urlResolver';
 
 type ManagedChildProcess = ReturnType<typeof execaCommand>;
 
@@ -55,7 +56,10 @@ function isPidAlive(pid?: number): boolean {
 export class ProcessManager {
   private readonly records = new Map<string, ManagedProcessRecord>();
 
-  constructor(private readonly store: ProjectStore) {}
+  constructor(
+    private readonly store: ProjectStore,
+    private readonly notifications: Notifications,
+  ) {}
 
   private ensureRecord(project: SavedProject): ManagedProcessRecord {
     const existing = this.records.get(project.id);
@@ -82,6 +86,10 @@ export class ProcessManager {
 
   private persistLogs(projectId: string, logs: LogEntry[]): void {
     this.store.setProjectLogs(projectId, logs.slice(-LOG_RETENTION_LIMIT));
+  }
+
+  appendSystemLog(projectId: string, message: string): void {
+    this.appendLog(projectId, 'system', message);
   }
 
   private appendLog(projectId: string, stream: LogEntry['stream'], message: string): void {
@@ -113,16 +121,23 @@ export class ProcessManager {
       const [detectedUrl] = extractUrlsFromText(line);
       if (detectedUrl) {
         record.state.url = normalizeLocalUrl(detectedUrl);
-        record.state.port = extractPortFromText(line) ?? record.state.port;
-        if (record.state.status === 'starting') {
+        record.state.port =
+          extractPortFromUrl(record.state.url) ??
+          extractPortFromText(line) ??
+          record.state.port;
+        if (record.state.status === 'starting' || record.state.status === 'error') {
           record.state.status = 'running';
+          this.notifications.projectReady(record.project.name, record.state.url);
         }
         continue;
       }
 
       const detectedPort = extractPortFromText(line);
-      if (detectedPort && !record.state.port) {
+      if (detectedPort) {
         record.state.port = detectedPort;
+        if (record.state.status === 'starting') {
+          record.state.status = 'running';
+        }
       }
     }
   }
@@ -134,6 +149,11 @@ export class ProcessManager {
   getRuntimeState(projectId: string): ProjectRuntimeState | undefined {
     const state = this.records.get(projectId)?.state;
     return state ? cloneRuntimeState(state) : undefined;
+  }
+
+  hasManagedRuntime(projectId: string): boolean {
+    const record = this.records.get(projectId);
+    return Boolean(record && ['running', 'starting'].includes(record.state.status));
   }
 
   isManagedPid(pid?: number): boolean {
@@ -202,10 +222,14 @@ export class ProcessManager {
         current.state.status = 'stopped';
         current.state.lastError = undefined;
         this.appendLog(project.id, 'system', 'Project stopped.');
+        if (!current.isStopping) {
+          this.notifications.projectStopped(project.name);
+        }
       } else {
         current.state.status = 'error';
         current.state.lastError = `Process exited with code ${exitCode ?? 'unknown'}.`;
         this.appendLog(project.id, 'system', current.state.lastError);
+        this.notifications.projectError(project.name, current.state.lastError);
       }
     });
 
@@ -218,6 +242,7 @@ export class ProcessManager {
       current.state.status = 'error';
       current.state.lastError = error.shortMessage ?? error.message;
       this.appendLog(project.id, 'system', `Failed to run: ${current.state.lastError}`);
+      this.notifications.projectError(project.name, current.state.lastError ?? 'The process could not be started.');
     });
 
     return cloneRuntimeState(record.state);
@@ -267,6 +292,8 @@ export class ProcessManager {
       record.state.uptimeSeconds = undefined;
     }
 
+    this.notifications.projectStopped(record.project.name);
+
     return cloneRuntimeState(record.state);
   }
 
@@ -302,16 +329,6 @@ export class ProcessManager {
 
   forgetProject(projectId: string): void {
     this.records.delete(projectId);
-  }
-
-  async openInVSCode(targetPath: string): Promise<void> {
-    const codePath = await execa('which', ['code'], { reject: false });
-    if (codePath.exitCode === 0) {
-      await execa('code', [targetPath], { reject: false });
-      return;
-    }
-
-    throw new Error('VS Code CLI is not installed.');
   }
 
   async shutdown(): Promise<void> {

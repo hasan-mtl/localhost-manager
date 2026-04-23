@@ -22,6 +22,25 @@ export function formatClockTime(value?: string): string {
   return dayjs(value).format('h:mm A');
 }
 
+export function formatRelativeFreshness(value?: string): string {
+  if (!value) {
+    return 'Not scanned yet';
+  }
+
+  const deltaMs = Date.now() - new Date(value).getTime();
+  const deltaSeconds = Math.max(0, Math.round(deltaMs / 1000));
+  if (deltaSeconds < 5) {
+    return 'Updated just now';
+  }
+
+  if (deltaSeconds < 60) {
+    return `Updated ${deltaSeconds}s ago`;
+  }
+
+  const deltaMinutes = Math.round(deltaSeconds / 60);
+  return `Updated ${deltaMinutes}m ago`;
+}
+
 export function formatUptime(seconds?: number): string {
   if (!seconds) {
     return '—';
@@ -84,4 +103,3 @@ export function statusLabel(status: ProjectStatus): string {
       return 'External';
   }
 }
-

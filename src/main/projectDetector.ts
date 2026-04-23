@@ -5,6 +5,7 @@ import { extractPortFromText } from './urlResolver';
 
 interface PackageJsonShape {
   name?: string;
+  packageManager?: string;
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -39,7 +40,11 @@ async function readJsonFile<T>(targetPath: string): Promise<T | null> {
   }
 }
 
-function detectPackageManager(hasComposer: boolean, checks: Record<string, boolean>): PackageManagerType {
+function detectPackageManager(
+  pkg: PackageJsonShape | null,
+  hasComposer: boolean,
+  checks: Record<string, boolean>,
+): PackageManagerType {
   if (checks['pnpm-lock.yaml']) {
     return 'pnpm';
   }
@@ -60,6 +65,22 @@ function detectPackageManager(hasComposer: boolean, checks: Record<string, boole
     return 'composer';
   }
 
+  if (pkg?.packageManager?.startsWith('pnpm@')) {
+    return 'pnpm';
+  }
+
+  if (pkg?.packageManager?.startsWith('yarn@')) {
+    return 'yarn';
+  }
+
+  if (pkg?.packageManager?.startsWith('bun@')) {
+    return 'bun';
+  }
+
+  if (pkg?.packageManager?.startsWith('npm@')) {
+    return 'npm';
+  }
+
   return 'unknown';
 }
 
@@ -68,6 +89,8 @@ function detectStack(pkg: PackageJsonShape | null, composer: ComposerJsonShape |
     ...(pkg?.dependencies ?? {}),
     ...(pkg?.devDependencies ?? {}),
   };
+
+  const scripts = Object.values(pkg?.scripts ?? {}).join(' ').toLowerCase();
 
   if (composer?.require?.['laravel/framework'] || checks['artisan']) {
     return 'laravel';
@@ -82,6 +105,18 @@ function detectStack(pkg: PackageJsonShape | null, composer: ComposerJsonShape |
   }
 
   if (dependencies.react || dependencies['react-dom']) {
+    return 'react';
+  }
+
+  if (scripts.includes('next dev')) {
+    return 'nextjs';
+  }
+
+  if (scripts.includes('vite')) {
+    return 'vite';
+  }
+
+  if (scripts.includes('react-scripts') || scripts.includes('webpack serve')) {
     return 'react';
   }
 
@@ -101,6 +136,8 @@ function commandForScript(packageManager: PackageManagerType, scriptName: string
     case 'bun':
       return scriptName === 'dev' ? 'bun dev' : `bun run ${scriptName}`;
     case 'npm':
+      return `npm run ${scriptName}`;
+    case 'unknown':
       return `npm run ${scriptName}`;
     default:
       return '';
@@ -126,6 +163,14 @@ function detectStartCommand(
 
   if (scripts.start) {
     return commandForScript(packageManager, 'start');
+  }
+
+  if (scripts.preview) {
+    return commandForScript(packageManager, 'preview');
+  }
+
+  if (packageManager === 'composer') {
+    return 'composer run dev';
   }
 
   return '';
@@ -197,7 +242,7 @@ export async function detectProject(rootPath: string): Promise<DetectedProjectDr
     : null;
 
   const stack = detectStack(packageJson, composerJson, checks);
-  const packageManager = detectPackageManager(checks['composer.json'], checks);
+  const packageManager = detectPackageManager(packageJson, checks['composer.json'], checks);
   const preferredPort = await detectPreferredPort(rootPath, packageJson, stack);
   const startCommand = detectStartCommand(stack, packageManager, packageJson, preferredPort);
   const warnings: string[] = [];
@@ -208,6 +253,10 @@ export async function detectProject(rootPath: string): Promise<DetectedProjectDr
 
   if (stack === 'unknown') {
     warnings.push('Framework detection was inconclusive. The project was saved as a custom setup.');
+  }
+
+  if (packageJson && packageManager === 'unknown') {
+    warnings.push('No lockfile was found, so the start command defaults to npm conventions.');
   }
 
   return {

@@ -56,17 +56,6 @@ export function DashboardPage({
     ? snapshot.ports.find((port) => port.matchedProjectId === selectedProject.id)
     : undefined;
 
-  if (snapshot.projects.length === 0) {
-    return (
-      <EmptyState
-        title="Manage every localhost project from one desktop surface"
-        description="Add a project folder to detect its stack, start command, and preferred port. Localhost Manager will also scan active machine ports immediately."
-        onAddProject={onAddProject}
-        onScanPorts={onScanPorts}
-      />
-    );
-  }
-
   return (
     <div className="flex h-full flex-col gap-5 overflow-auto pr-2">
       <SummaryCards snapshot={snapshot} counts={counts} />
@@ -80,16 +69,25 @@ export function DashboardPage({
                 {filteredProjects.length} visible
               </span>
             </div>
-            <ProjectTable
-              projects={filteredProjects}
-              runtimeMap={runtimeMap}
-              selectedProjectId={selectedProject?.id}
-              onSelectProject={onSelectProject}
-              onToggleProject={onToggleProject}
-              onOpenLocalhost={onOpenLocalhost}
-              onEditProject={onEditProject}
-              onRemoveProject={onRemoveProject}
-            />
+            {snapshot.projects.length === 0 ? (
+              <EmptyState
+                title="Manage every localhost project from one desktop surface"
+                description="Add a project folder to detect its stack, start command, and preferred port. Localhost Manager is already scanning machine ports in the background."
+                onAddProject={onAddProject}
+                onScanPorts={onScanPorts}
+              />
+            ) : (
+              <ProjectTable
+                projects={filteredProjects}
+                runtimeMap={runtimeMap}
+                selectedProjectId={selectedProject?.id}
+                onSelectProject={onSelectProject}
+                onToggleProject={onToggleProject}
+                onOpenLocalhost={onOpenLocalhost}
+                onEditProject={onEditProject}
+                onRemoveProject={onRemoveProject}
+              />
+            )}
           </section>
 
           <section className="space-y-4">
@@ -122,4 +120,3 @@ export function DashboardPage({
     </div>
   );
 }
-

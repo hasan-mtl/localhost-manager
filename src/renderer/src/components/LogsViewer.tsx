@@ -40,7 +40,10 @@ export function LogsViewer({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 px-5 py-4">
         <div>
           <h3 className="text-lg font-semibold text-white">{project?.name ?? 'Select a project'}</h3>
-          <p className="text-sm text-slate-500">Managed stdout, stderr, and system messages stay attached to the project.</p>
+          <p className="text-sm text-slate-500">
+            Managed stdout, stderr, and system messages stay attached to the project.
+            {visibleLogs.length > 0 ? ` Showing ${visibleLogs.length} lines.` : ''}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <select
@@ -90,4 +93,3 @@ export function LogsViewer({
     </div>
   );
 }
-

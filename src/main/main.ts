@@ -1,7 +1,8 @@
-import { app, BrowserWindow, nativeTheme } from 'electron';
+import { app, BrowserWindow, nativeTheme, shell } from 'electron';
 import { join } from 'node:path';
 import { HealthMonitor } from './healthMonitor';
 import { registerIpcHandlers } from './ipc';
+import { Notifications } from './notifications';
 import { PortScanner } from './portScanner';
 import { ProcessManager } from './processManager';
 import { ProjectStore } from './projectStore';
@@ -18,11 +19,19 @@ function createWindow(): void {
     backgroundColor: '#06101e',
     titleBarStyle: 'hiddenInset',
     show: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
     },
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
@@ -38,11 +47,13 @@ function createWindow(): void {
 async function bootstrap(): Promise<void> {
   nativeTheme.themeSource = 'dark';
   const store = new ProjectStore();
-  const processManager = new ProcessManager(store);
+  const notifications = new Notifications(() => mainWindow);
+  const processManager = new ProcessManager(store, notifications);
   const portScanner = new PortScanner();
   const healthMonitor = new HealthMonitor();
 
   registerIpcHandlers({
+    notifications,
     store,
     processManager,
     portScanner,
@@ -69,4 +80,3 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-
