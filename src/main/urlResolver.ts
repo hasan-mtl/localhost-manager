@@ -14,7 +14,7 @@ export function normalizeHost(host?: string): string | undefined {
 
   const normalized = host.replace(/^\[/, '').replace(/\]$/, '');
   if (normalized === '*' || normalized === '0.0.0.0' || normalized === '::' || normalized === '::1') {
-    return '127.0.0.1';
+    return 'localhost';
   }
 
   return normalized;
@@ -73,19 +73,43 @@ export function buildPortUrlCandidates(
   const candidates: string[] = [];
 
   if (preferredUrl) {
-    candidates.push(normalizeLocalUrl(preferredUrl));
+    candidates.push(...expandLocalUrlVariants(preferredUrl));
   }
 
   if (port) {
-    if (normalizedHost) {
+    candidates.push(`http://localhost:${port}`);
+    candidates.push(`http://127.0.0.1:${port}`);
+
+    if (normalizedHost && !['localhost', '127.0.0.1'].includes(normalizedHost)) {
       candidates.push(`http://${normalizedHost}:${port}`);
     }
-
-    candidates.push(`http://127.0.0.1:${port}`);
-    candidates.push(`http://localhost:${port}`);
   }
 
   return uniqueStrings(candidates);
+}
+
+function expandLocalUrlVariants(url?: string): string[] {
+  if (!url) {
+    return [];
+  }
+
+  try {
+    const parsed = new URL(url.trim());
+    const pathname = `${parsed.pathname}${parsed.search}${parsed.hash}`.replace(/\/$/, '');
+    const base = `${parsed.protocol}//`;
+    const portSegment = parsed.port ? `:${parsed.port}` : '';
+
+    if (['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]'].includes(parsed.hostname)) {
+      return uniqueStrings([
+        `${base}localhost${portSegment}${pathname}`,
+        `${base}127.0.0.1${portSegment}${pathname}`,
+      ]);
+    }
+
+    return [normalizeLocalUrl(url)];
+  } catch {
+    return [url.trim()];
+  }
 }
 
 export function getProjectUrlCandidates(
@@ -95,10 +119,9 @@ export function getProjectUrlCandidates(
 ): string[] {
   const port = runtime.port ?? matchedPort?.port ?? project.preferredPort;
   return uniqueStrings([
-    runtime.url,
-    project.preferredUrl,
-    matchedPort?.detectedUrl,
+    ...expandLocalUrlVariants(runtime.url),
+    ...expandLocalUrlVariants(project.preferredUrl),
+    ...expandLocalUrlVariants(matchedPort?.detectedUrl),
     ...buildPortUrlCandidates(port, matchedPort?.host, project.preferredUrl),
   ]);
 }
-

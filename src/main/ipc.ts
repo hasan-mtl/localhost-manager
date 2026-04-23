@@ -276,6 +276,14 @@ export function registerIpcHandlers(services: AppServices): void {
           throw new Error('Port could not be found.');
         }
 
+        if (!port.developerLike) {
+          throw new Error('This listener does not look like a local development web service, so Localhost Manager will not open it in the browser.');
+        }
+
+        if (!port.reachable || !port.detectedUrl) {
+          throw new Error('This listening port does not currently look like a browser-openable localhost web app.');
+        }
+
         const targetUrl = port.detectedUrl ?? `http://127.0.0.1:${port.port}`;
         await open(targetUrl, { wait: false });
         return targetUrl;

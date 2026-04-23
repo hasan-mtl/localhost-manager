@@ -49,7 +49,10 @@ export function DashboardPage({
 }: DashboardPageProps) {
   const runtimeMap = buildRuntimeMap(snapshot.runtimeStates);
   const filteredProjects = filterProjects(snapshot.projects, runtimeMap, searchQuery, quickFilter);
-  const filteredPorts = filterPorts(snapshot.ports, searchQuery, quickFilter, 'all').slice(0, 6);
+  const dashboardFocusedPorts = snapshot.ports.filter(
+    (port) => port.developerLike || Boolean(port.matchedProjectId) || port.source === 'managed',
+  );
+  const filteredPorts = filterPorts(dashboardFocusedPorts, searchQuery, quickFilter, 'all').slice(0, 6);
   const selectedProject = snapshot.projects.find((project) => project.id === selectedProjectId) ?? filteredProjects[0];
   const selectedRuntime = selectedProject ? runtimeMap[selectedProject.id] : undefined;
   const selectedPort = selectedProject

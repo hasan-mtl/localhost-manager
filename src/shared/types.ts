@@ -79,6 +79,7 @@ export interface PortRecord {
   matchedProjectId?: string;
   detectedUrl?: string;
   startedAt?: string;
+  developerLike: boolean;
   reachable?: boolean;
   latencyMs?: number;
   canStop: boolean;

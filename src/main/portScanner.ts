@@ -144,19 +144,11 @@ export class PortScanner {
     const deduped = new Map<string, PortInspectionRecord>();
 
     for (const record of inspected) {
-      if (!settings.showAllPorts && !isLocalBinding(record.host) && !isLikelyDevProcess(record)) {
-        continue;
-      }
-
-      if (!settings.showAllPorts && !isLikelyDevProcess(record) && !isLocalBinding(record.host)) {
-        continue;
-      }
-
       deduped.set(`${record.pid}:${record.port}`, record);
     }
 
     return [...deduped.values()]
-      .map<PortRecord>((record) => {
+      .flatMap<PortRecord>((record) => {
         const directRuntime = runtimeStates.find((runtime) => runtime.pid && runtime.pid === record.pid);
         let matchedProjectId = directRuntime?.projectId;
 
@@ -181,8 +173,18 @@ export class PortScanner {
             ? 'managed'
             : 'external';
         const safety = canSafelyStopPort(record, matchedProjectId, matchedManagedRuntime);
+        const developerLike =
+          Boolean(directRuntime) ||
+          Boolean(matchedProjectId) ||
+          isLikelyDevProcess(record) ||
+          (!settings.showAllPorts && isLocalBinding(record.host) && normalizePath(record.cwd).startsWith(normalizePath(homedir())));
+
+        if (!settings.showAllPorts && !developerLike) {
+          return [];
+        }
+
         const url = buildPortUrlCandidates(record.port, record.host)[0];
-        return {
+        return [{
           id: `${record.pid}:${record.port}`,
           port: record.port,
           pid: record.pid,
@@ -196,9 +198,10 @@ export class PortScanner {
           matchedProjectId,
           detectedUrl: url,
           startedAt: record.startedAt,
+          developerLike,
           canStop: safety.canStop,
           stopWarning: safety.stopWarning,
-        };
+        }];
       })
       .sort((left, right) => {
         const scoreDelta = scorePortPriority(right) - scorePortPriority(left);

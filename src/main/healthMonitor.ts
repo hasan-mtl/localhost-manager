@@ -34,7 +34,7 @@ export class HealthMonitor {
         cache: 'no-store',
       });
       const latency = Math.round(performance.now() - startedAt);
-      return response.status < 500 ? latency : null;
+      return response.status < 400 ? latency : null;
     } catch {
       return null;
     }

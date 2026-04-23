@@ -50,7 +50,19 @@ export function ActivePortsTable({ ports, onOpenLocalhost, onStopPort }: ActiveP
             <button
               type="button"
               onClick={() => onOpenLocalhost(port.id)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-slate-100 hover:bg-white/[0.08]"
+              disabled={!port.developerLike || !port.reachable}
+              title={
+                !port.developerLike
+                  ? 'Only development/web listeners can be opened from Localhost Manager.'
+                  : !port.reachable
+                    ? 'This listener does not currently look like a browser-openable web app.'
+                    : undefined
+              }
+              className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-medium ${
+                port.developerLike && port.reachable
+                  ? 'border-white/10 bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]'
+                  : 'cursor-not-allowed border-white/6 bg-white/[0.02] text-slate-500'
+              }`}
             >
               <ExternalLink className="h-4 w-4" />
               Open
